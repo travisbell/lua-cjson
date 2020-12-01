@@ -1,5 +1,28 @@
 local json = require "cjson"
 
+local unpack = unpack or table.unpack
+
+local maxn = table.maxn or function(t)
+    local max = 0
+    for k,v in pairs(t) do
+        if type(k) == "number" and k > max then
+            max = k
+        end
+    end
+    return max
+end
+
+local _one_of_mt = {}
+
+local function one_of(t)
+    setmetatable(t, _one_of_mt)
+    return t
+end
+
+local function is_one_of(t)
+    return type(t) == "table" and getmetatable(t) == _one_of_mt
+end
+
 -- Various common routines used by the Lua CJSON package
 --
 -- Mark Pulford <mark@kyne.com.au>
@@ -52,7 +75,11 @@ local function serialise_table(value, indent, depth)
     local max = is_array(value)
 
     local comma = false
-    local fragment = { "{" .. spacing2 }
+    local prefix = "{"
+    if is_one_of(value) then
+        prefix = "ONE_OF{"
+    end
+    local fragment = { prefix .. spacing2 }
     if max > 0 then
         -- Serialise array
         for i = 1, max do
@@ -139,6 +166,15 @@ local function file_save(filename, data)
 end
 
 local function compare_values(val1, val2)
+    if is_one_of(val2) then
+        for _, option in ipairs(val2) do
+            if compare_values(val1, option) then
+                return true
+            end
+        end
+        return false
+    end
+
     local type1 = type(val1)
     local type2 = type(val2)
     if type1 ~= type2 then
@@ -194,8 +230,12 @@ local function run_test(testname, func, input, should_work, output)
         print(("[%s] %s"):format(name, serialise_value(value, false)))
     end
 
-    local result = { pcall(func, unpack(input)) }
-    local success = table.remove(result, 1)
+    local result = {}
+    local tmp = { pcall(func, unpack(input)) }
+    local success = tmp[1]
+    for i = 2, maxn(tmp) do
+        result[i - 1] = tmp[i]
+    end
 
     local correct = false
     if success == should_work and compare_values(result, output) then
@@ -270,7 +310,8 @@ return {
     run_test_summary = run_test_summary,
     run_test = run_test,
     run_test_group = run_test_group,
-    run_script = run_script
+    run_script = run_script,
+    one_of = one_of
 }
 
 -- vi:ai et sw=4 ts=4:

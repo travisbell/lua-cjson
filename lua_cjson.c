@@ -558,7 +558,6 @@ static void json_append_string(lua_State *l, strbuf_t *json, int lindex)
     unsigned i;
     const char *str;
     size_t len;
-    size_t i;
 
     str = lua_tolstring(l, lindex, &len);
 
